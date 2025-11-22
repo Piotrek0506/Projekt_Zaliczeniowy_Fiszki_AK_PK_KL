@@ -207,7 +207,7 @@
       });
     }
   }
-})({"briLC":[function(require,module,exports,__globalThis) {
+})({"elbaT":[function(require,module,exports,__globalThis) {
 var global = arguments[3];
 var HMR_HOST = null;
 var HMR_PORT = null;
@@ -724,6 +724,11 @@ const app = document.getElementById('app');
 const deck = (0, _deckJsonDefault.default);
 let session = null;
 let cardRevealed = false;
+let currentFilterSettings = {
+    filterTag: null,
+    repeatOnlyHard: false,
+    shuffle: deck.session.shuffle
+};
 function updateStatsPanel(totalTime, cardTime) {
     const totalTimer = document.getElementById('session-timer');
     const cardTimer = document.getElementById('card-timer');
@@ -763,7 +768,10 @@ function showCardView(newCard = true) {
 }
 function handleCardGraded() {
     if (session.getState().isCompleted) showSummary();
-    else if (session.goToNext()) showCardView();
+    else {
+        if (session.goToNext()) showCardView();
+        else if (session.isFinishButtonActive()) showSummary();
+    }
 }
 function showSummary() {
     if (!session) return;
@@ -775,23 +783,65 @@ function showSummary() {
         cardRevealed = false;
         showStartScreen();
     });
+    document.getElementById('repeat-hard-btn')?.addEventListener('click', ()=>{
+        const newSession = session.resetForHardCards();
+        if (newSession.getState().cardOrderIds.length > 0) {
+            session = newSession;
+            currentFilterSettings = session.getState().filterSettings;
+            (0, _storageJs.clearSession)(deck.deckTitle);
+            showCardView();
+        } else {
+            alert("Brak trudnych fiszek do powt\xf3rki. Zaczynamy normaln\u0105 sesj\u0119.");
+            showStartScreen();
+        }
+    });
 }
 function showStartScreen() {
-    app.innerHTML = (0, _indexJs.renderStartScreen)(deck.deckTitle, deck.cards.length);
+    app.innerHTML = (0, _indexJs.renderStartScreen)(deck, currentFilterSettings);
+    document.getElementById('tag-filter').value = currentFilterSettings.filterTag || '';
+    document.getElementById('shuffle-setting').checked = currentFilterSettings.shuffle;
+    document.getElementById('repeat-hard-setting').checked = currentFilterSettings.repeatOnlyHard;
+    document.getElementById('tag-filter')?.addEventListener('change', (e)=>{
+        currentFilterSettings.filterTag = e.target.value || null;
+        currentFilterSettings.repeatOnlyHard = false;
+        document.getElementById('repeat-hard-setting').checked = false;
+    });
+    document.getElementById('shuffle-setting')?.addEventListener('change', (e)=>{
+        currentFilterSettings.shuffle = e.target.checked;
+    });
+    document.getElementById('repeat-hard-setting')?.addEventListener('change', (e)=>{
+        currentFilterSettings.repeatOnlyHard = e.target.checked;
+        if (currentFilterSettings.repeatOnlyHard) {
+            currentFilterSettings.filterTag = null;
+            document.getElementById('tag-filter').value = '';
+        }
+    });
     document.getElementById('start-session-btn')?.addEventListener('click', ()=>{
-        session = new (0, _sessionJs.FlashcardSession)(deck);
-        showCardView();
+        session = new (0, _sessionJs.FlashcardSession)(deck, currentFilterSettings);
+        currentFilterSettings = session.getState().filterSettings;
+        if (session.getState().cardOrderIds.length > 0) showCardView();
+        else {
+            alert("Brak fiszek spe\u0142niaj\u0105cych kryteria filtrowania. Zmie\u0144 ustawienia i spr\xf3buj ponownie.");
+            session = null;
+        }
     });
 }
 function initApp() {
     const savedSessionState = (0, _storageJs.loadSession)(deck.deckTitle);
-    if (savedSessionState && savedSessionState.isCompleted) {
-        session = new (0, _sessionJs.FlashcardSession)(deck);
-        showSummary();
-    } else if (savedSessionState && savedSessionState.sessionStartTime !== 0) {
-        session = new (0, _sessionJs.FlashcardSession)(deck);
-        showCardView();
-    } else showStartScreen();
+    if (savedSessionState) {
+        currentFilterSettings = savedSessionState.filterSettings;
+        session = new (0, _sessionJs.FlashcardSession)(deck, currentFilterSettings);
+    }
+    if (session && session.getState().isCompleted) showSummary();
+    else if (session && session.getState().sessionStartTime !== 0) showCardView();
+    else {
+        currentFilterSettings = {
+            filterTag: null,
+            repeatOnlyHard: false,
+            shuffle: deck.session.shuffle
+        };
+        showStartScreen();
+    }
 }
 initApp();
 
@@ -802,15 +852,16 @@ module.exports = JSON.parse('{"deckTitle":"Angielski: Podstawowe czasowniki i rz
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "FlashcardSession", ()=>FlashcardSession);
-var _storage = require("../storage/storage");
+var _storageJs = require("../storage/storage.js"); // Dodano getDeckResults
 const ONE_SECOND = 1000;
 class FlashcardSession {
-    constructor(deckData){
+    constructor(deckData, filterSettings){
         this.cardsInSession = [];
         this.cardStartTime = 0;
         this.timerInterval = null;
         this.deck = deckData;
-        const savedState = (0, _storage.loadSession)(deckData.deckTitle);
+        this.defaultFilterSettings = filterSettings;
+        const savedState = (0, _storageJs.loadSession)(deckData.deckTitle);
         if (savedState) {
             this.state = savedState;
             this.cardsInSession = savedState.cardOrderIds.map((id)=>this.deck.cards.find((c)=>c.id === id)).filter((c)=>c !== undefined);
@@ -827,10 +878,25 @@ class FlashcardSession {
         }
     }
     initializeNewSession() {
-        this.cardsInSession = [
+        let filteredCards = [
             ...this.deck.cards
         ];
-        if (this.deck.session.shuffle) this.shuffleArray(this.cardsInSession);
+        const settings = this.defaultFilterSettings;
+        if (settings.filterTag) filteredCards = filteredCards.filter((c)=>c.tag === settings.filterTag);
+        if (settings.repeatOnlyHard) {
+            const allResults = (0, _storageJs.getDeckResults)(this.deck.deckTitle);
+            const hardCardIds = allResults.filter((r)=>r.grade === 'NotYet').map((r)=>r.cardId);
+            filteredCards = filteredCards.filter((c)=>hardCardIds.includes(c.id));
+            if (filteredCards.length === 0) {
+                console.warn("Brak trudnych fiszek do powt\xf3rki. Rozpoczynam normaln\u0105 sesj\u0119.");
+                filteredCards = [
+                    ...this.deck.cards
+                ];
+                settings.repeatOnlyHard = false;
+            }
+        }
+        this.cardsInSession = filteredCards;
+        if (settings.shuffle) this.shuffleArray(this.cardsInSession);
         const initialResults = this.cardsInSession.map((card)=>({
                 cardId: card.id,
                 grade: null,
@@ -844,7 +910,8 @@ class FlashcardSession {
             sessionStartTime: Date.now(),
             results: initialResults,
             isCompleted: false,
-            lastReviewDate: 0
+            lastReviewDate: 0,
+            filterSettings: settings
         };
     }
     getCurrentCard() {
@@ -864,19 +931,19 @@ class FlashcardSession {
             return;
         }
         const now = Date.now();
-        const timeSpent = now - this.cardStartTime;
+        const timeSpent = currentResult.timeSpentMs + (now - this.cardStartTime);
         currentResult.grade = grade;
         currentResult.timeSpentMs = timeSpent;
         currentResult.reviewedAt = now;
         this.checkCompletion();
-        (0, _storage.saveSession)(this.state);
+        (0, _storageJs.saveSession)(this.state);
         this.cardStartTime = Date.now();
     }
     goToNext() {
         if (this.state.currentCardIndex < this.cardsInSession.length - 1) {
             this.state.currentCardIndex++;
             this.cardStartTime = Date.now();
-            (0, _storage.saveSession)(this.state);
+            (0, _storageJs.saveSession)(this.state);
             return true;
         }
         return false;
@@ -885,7 +952,7 @@ class FlashcardSession {
         if (this.state.currentCardIndex > 0) {
             this.state.currentCardIndex--;
             this.cardStartTime = Date.now();
-            (0, _storage.saveSession)(this.state);
+            (0, _storageJs.saveSession)(this.state);
             return true;
         }
         return false;
@@ -895,18 +962,22 @@ class FlashcardSession {
         if (allGraded && !this.state.isCompleted) {
             this.state.isCompleted = true;
             this.stopTimer();
-            (0, _storage.saveSession)(this.state);
+            (0, _storageJs.saveSession)(this.state);
         }
     }
     getTimeOnCurrentCardMs() {
-        return Date.now() - this.cardStartTime;
+        const currentResult = this.getCurrentResult();
+        if (currentResult.grade !== null) return currentResult.timeSpentMs;
+        return currentResult.timeSpentMs + (Date.now() - this.cardStartTime);
     }
     getTotalSessionTimeMs() {
         if (this.state.isCompleted) {
             const lastReviewedTime = Math.max(...this.state.results.map((r)=>r.reviewedAt));
             return lastReviewedTime - this.state.sessionStartTime;
         }
-        return Date.now() - this.state.sessionStartTime;
+        const timeInCurrentCard = Date.now() - this.cardStartTime;
+        const timeInPreviousCards = this.state.results.filter((_, index)=>index < this.state.currentCardIndex).reduce((sum, r)=>sum + r.timeSpentMs, 0);
+        return timeInPreviousCards + timeInCurrentCard;
     }
     startTimer(callback) {
         if (this.timerInterval !== null) return;
@@ -937,16 +1008,17 @@ class FlashcardSession {
         return `${pad(minutes)}:${pad(seconds)}`;
     }
     getSummary() {
-        const totalTimeMs = this.getTotalSessionTimeMs();
+        const gradedResults = this.state.results.filter((r)=>r.grade !== null);
         const totalCards = this.cardsInSession.length;
-        const totalTimeGraded = this.state.results.reduce((sum, r)=>sum + r.timeSpentMs, 0);
-        const avgTimeMs = totalCards > 0 ? totalTimeGraded / totalCards : 0;
+        const totalTimeGraded = gradedResults.reduce((sum, r)=>sum + r.timeSpentMs, 0);
+        const finalTotalTimeMs = this.state.isCompleted ? Math.max(...this.state.results.map((r)=>r.reviewedAt)) - this.state.sessionStartTime : this.getTotalSessionTimeMs();
+        const avgTimeMs = gradedResults.length > 0 ? totalTimeGraded / gradedResults.length : 0;
         const hardCardsIds = this.state.results.filter((r)=>r.grade === 'NotYet').map((r)=>r.cardId);
         const hardCards = this.deck.cards.filter((card)=>hardCardsIds.includes(card.id));
         return {
             known: this.getKnownCount(),
             notYet: this.getNotYetCount(),
-            totalTime: this.formatTime(totalTimeMs),
+            totalTime: this.formatTime(finalTotalTimeMs),
             avgTime: this.formatTime(avgTimeMs),
             hardCards: hardCards
         };
@@ -957,14 +1029,32 @@ class FlashcardSession {
     isCurrentCardGraded() {
         return this.getCurrentResult().grade !== null;
     }
+    resetForHardCards() {
+        const summary = this.getSummary();
+        const newSettings = {
+            shuffle: this.state.filterSettings.shuffle,
+            filterTag: this.state.filterSettings.filterTag,
+            repeatOnlyHard: true
+        };
+        return new FlashcardSession(this.deck, newSettings);
+    }
+    getTagSummary() {
+        const tagMap = new Map();
+        this.deck.cards.forEach((card)=>{
+            const tag = card.tag || 'Bez tagu';
+            tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+        });
+        return tagMap;
+    }
 }
 
-},{"../storage/storage":"lXxpO","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lXxpO":[function(require,module,exports,__globalThis) {
+},{"../storage/storage.js":"lXxpO","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"lXxpO":[function(require,module,exports,__globalThis) {
 var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
 parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "saveSession", ()=>saveSession);
 parcelHelpers.export(exports, "loadSession", ()=>loadSession);
 parcelHelpers.export(exports, "clearSession", ()=>clearSession);
+parcelHelpers.export(exports, "getDeckResults", ()=>getDeckResults);
 const STORAGE_KEY_PREFIX = 'flashcard_session_';
 function saveSession(state) {
     const key = STORAGE_KEY_PREFIX + state.deckTitle;
@@ -979,7 +1069,17 @@ function loadSession(deckTitle) {
     const key = STORAGE_KEY_PREFIX + deckTitle;
     try {
         const json = localStorage.getItem(key);
-        if (json) return JSON.parse(json);
+        if (json) {
+            const loadedState = JSON.parse(json);
+            return {
+                ...loadedState,
+                filterSettings: loadedState.filterSettings || {
+                    shuffle: true,
+                    filterTag: null,
+                    repeatOnlyHard: false
+                }
+            };
+        }
     } catch (e) {
         console.error("B\u0142\u0105d odczytu z localStorage", e);
     }
@@ -988,6 +1088,10 @@ function loadSession(deckTitle) {
 function clearSession(deckTitle) {
     const key = STORAGE_KEY_PREFIX + deckTitle;
     localStorage.removeItem(key);
+}
+function getDeckResults(deckTitle) {
+    const state = loadSession(deckTitle);
+    return state ? state.results : [];
 }
 
 },{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"jnFvT":[function(require,module,exports,__globalThis) {
@@ -1026,12 +1130,11 @@ parcelHelpers.defineInteropFlag(exports);
 parcelHelpers.export(exports, "renderStartScreen", ()=>renderStartScreen);
 parcelHelpers.export(exports, "renderCardViewHtml", ()=>renderCardViewHtml);
 parcelHelpers.export(exports, "renderSummaryScreen", ()=>renderSummaryScreen);
+var _filtersJs = require("./filters.js");
 const APP_CONTAINER_ID = 'app';
 const appContainer = document.getElementById(APP_CONTAINER_ID);
 function getStatsPanelHtml(session, cardRevealed) {
     const state = session.getState();
-    const currentCard = session.getCurrentCard();
-    const result = session.getCurrentResult();
     let totalTime = '00:00';
     let cardTime = '00:00';
     if (!state.isCompleted) {
@@ -1048,11 +1151,14 @@ function getStatsPanelHtml(session, cardRevealed) {
         </div>
     `;
 }
-function renderStartScreen(title, count) {
+function renderStartScreen(deck, currentSettings) {
     return `
-        <h1>\u{1F4D6} ${title}</h1>
+        <h1>\u{1F4D6} ${deck.deckTitle}</h1>
         <p>Witaj w aplikacji do nauki s\u{142}\xf3wek. Got\xf3w na powt\xf3rk\u{119}?</p>
-        <div class="summary-item">Liczba fiszek w talii: <strong>${count}</strong></div>
+        <div class="summary-item">Liczba fiszek w talii: <strong>${deck.cards.length}</strong></div>
+        
+        ${(0, _filtersJs.renderFilterPanel)(deck, currentSettings)}
+        
         <div class="controls" style="text-align: center; margin-top: 30px;">
             <button id="start-session-btn" class="btn btn-primary">Rozpocznij sesj\u{119}</button>
         </div>
@@ -1092,7 +1198,7 @@ function renderCardViewHtml(session, cardRevealed) {
         ${getStatsPanelHtml(session, cardRevealed)}
         <div class="card-view">
             <div class="flashcard">
-                ${card.front}
+                <div class="card-front">${card.front}</div>
                 ${backContent}
             </div>
             ${gradedInfo}
@@ -1104,10 +1210,11 @@ function renderCardViewHtml(session, cardRevealed) {
 }
 function renderSummaryScreen(title, summary) {
     const hardCardsList = summary.hardCards.length > 0 ? `
-        <h3>Trudne fiszki (${summary.notYet} szt.):</h3>
+        <h3>Trudne fiszki (${summary.notYet} szt.) do powt\xf3rki:</h3>
         <ul class="hard-cards-list">
             ${summary.hardCards.map((card)=>`<li><strong>${card.front}</strong> - ${card.back}</li>`).join('')}
         </ul>
+        <button id="repeat-hard-btn" class="btn btn-danger" style="margin-top: 15px;">Powt\xf3rz tylko trudne</button>
         ` : `<p>Brak fiszek oznaczonych jako "Jeszcze nie". \u{15A}wietna robota!</p>`;
     return `
         <h1>\u{1F389} Podsumowanie Sesji: ${title}</h1>
@@ -1129,6 +1236,46 @@ function renderSummaryScreen(title, summary) {
     `;
 }
 
-},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["briLC","gNc1f"], "gNc1f", "parcelRequire170a", {})
+},{"./filters.js":"hxUaN","@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}],"hxUaN":[function(require,module,exports,__globalThis) {
+var parcelHelpers = require("@parcel/transformer-js/src/esmodule-helpers.js");
+parcelHelpers.defineInteropFlag(exports);
+parcelHelpers.export(exports, "renderFilterPanel", ()=>renderFilterPanel);
+function getUniqueTags(deck) {
+    const tags = new Set();
+    deck.cards.forEach((card)=>{
+        if (card.tag) tags.add(card.tag);
+    });
+    return Array.from(tags).sort();
+}
+function renderFilterPanel(deck, currentSettings) {
+    const uniqueTags = getUniqueTags(deck);
+    const tagOptions = uniqueTags.map((tag)=>`<option value="${tag}" ${currentSettings.filterTag === tag ? 'selected' : ''}>${tag}</option>`).join('');
+    return `
+        <h2>\u{2699}\u{FE0F} Opcje Sesji</h2>
+        <div class="filter-panel">
+            <div class="filter-group">
+                <label for="tag-filter">Filtruj po tagach:</label>
+                <select id="tag-filter">
+                    <option value="">Wszystkie tagi</option>
+                    ${tagOptions}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="shuffle-setting">Losowanie:</label>
+                <input type="checkbox" id="shuffle-setting" ${currentSettings.shuffle ? 'checked' : ''}>
+                <span>Losuj kolejno\u{15B}\u{107} fiszek</span>
+            </div>
+            
+            <div class="filter-group">
+                <label for="repeat-hard-setting">Tryb powt\xf3rki:</label>
+                <input type="checkbox" id="repeat-hard-setting" ${currentSettings.repeatOnlyHard ? 'checked' : ''}>
+                <span>Tylko nieznane/trudne fiszki</span>
+            </div>
+        </div>
+    `;
+}
+
+},{"@parcel/transformer-js/src/esmodule-helpers.js":"jnFvT"}]},["elbaT","gNc1f"], "gNc1f", "parcelRequire170a", {})
 
 //# sourceMappingURL=Test.0f289648.js.map

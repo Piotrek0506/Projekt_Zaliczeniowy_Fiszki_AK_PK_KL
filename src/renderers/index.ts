@@ -1,15 +1,15 @@
-import { Deck, Card, Grade, SessionSummary } from '../models';
-import { FlashcardSession } from '../logic/session';
+import { SessionSummary, FilterSettings, Deck } from '../models/index.js'; 
+import { FlashcardSession } from '../logic/session.js'; 
+import { renderFilterPanel } from './filters.js'; 
 
 const APP_CONTAINER_ID = 'app';
 const appContainer = document.getElementById(APP_CONTAINER_ID) as HTMLDivElement;
 
 function getStatsPanelHtml(session: FlashcardSession, cardRevealed: boolean): string {
     const state = session.getState();
-    const currentCard = session.getCurrentCard();
-    const result = session.getCurrentResult();
+
     
-    
+
     let totalTime = '00:00';
     let cardTime = '00:00';
     if (!state.isCompleted) {
@@ -29,11 +29,15 @@ function getStatsPanelHtml(session: FlashcardSession, cardRevealed: boolean): st
 }
 
 
-export function renderStartScreen(title: string, count: number): string {
+
+export function renderStartScreen(deck: Deck, currentSettings: FilterSettings): string {
     return `
-        <h1>📖 ${title}</h1>
+        <h1>📖 ${deck.deckTitle}</h1>
         <p>Witaj w aplikacji do nauki słówek. Gotów na powtórkę?</p>
-        <div class="summary-item">Liczba fiszek w talii: <strong>${count}</strong></div>
+        <div class="summary-item">Liczba fiszek w talii: <strong>${deck.cards.length}</strong></div>
+        
+        ${renderFilterPanel(deck, currentSettings)}
+        
         <div class="controls" style="text-align: center; margin-top: 30px;">
             <button id="start-session-btn" class="btn btn-primary">Rozpocznij sesję</button>
         </div>
@@ -61,8 +65,7 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
     const showAnswerButton = `
         <button id="show-answer-btn" class="btn btn-secondary" style="display: ${!cardRevealed ? 'block' : 'none'}; margin: 10px auto;">Pokaż odpowiedź</button>
     `;
-    
-   
+
     const isLastCard = session.getState().currentCardIndex === session.getState().cardOrderIds.length - 1;
     const isFinishActive = session.isFinishButtonActive();
 
@@ -74,7 +77,6 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
         </div>
     `;
 
-    
     let gradedInfo = '';
     if (isGraded) {
         const gradeText = result.grade === 'Known' ? '✅ ZNANA' : '❌ JESZCZE NIE';
@@ -86,7 +88,7 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
         ${getStatsPanelHtml(session, cardRevealed)}
         <div class="card-view">
             <div class="flashcard">
-                ${card.front}
+                <div class="card-front">${card.front}</div>
                 ${backContent}
             </div>
             ${gradedInfo}
@@ -101,10 +103,11 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
 export function renderSummaryScreen(title: string, summary: SessionSummary): string {
     const hardCardsList = summary.hardCards.length > 0 ? 
         `
-        <h3>Trudne fiszki (${summary.notYet} szt.):</h3>
+        <h3>Trudne fiszki (${summary.notYet} szt.) do powtórki:</h3>
         <ul class="hard-cards-list">
             ${summary.hardCards.map(card => `<li><strong>${card.front}</strong> - ${card.back}</li>`).join('')}
         </ul>
+        <button id="repeat-hard-btn" class="btn btn-danger" style="margin-top: 15px;">Powtórz tylko trudne</button>
         ` : 
         `<p>Brak fiszek oznaczonych jako "Jeszcze nie". Świetna robota!</p>`;
 
