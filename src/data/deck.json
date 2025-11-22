@@ -1,0 +1,28 @@
+{
+  "deckTitle": "Angielski: Podstawowe czasowniki i rzeczowniki (22 szt.)",
+  "cards": [
+    { "id": 1, "front": "to go", "back": "iść, jechać", "tag": "czasowniki" },
+    { "id": 2, "front": "to make", "back": "robić, tworzyć", "tag": "czasowniki" },
+    { "id": 3, "front": "house", "back": "dom", "tag": "rzeczowniki" },
+    { "id": 4, "front": "water", "back": "woda", "tag": "rzeczowniki" },
+    { "id": 5, "front": "to see", "back": "widzieć", "tag": "czasowniki" },
+    { "id": 6, "front": "book", "back": "książka", "tag": "rzeczowniki" },
+    { "id": 7, "front": "to take", "back": "brać, zabierać", "tag": "czasowniki" },
+    { "id": 8, "front": "time", "back": "czas", "tag": "rzeczowniki" },
+    { "id": 9, "front": "to come", "back": "przychodzić", "tag": "czasowniki" },
+    { "id": 10, "front": "person", "back": "osoba", "tag": "rzeczowniki" },
+    { "id": 11, "front": "to think", "back": "myśleć", "tag": "czasowniki" },
+    { "id": 12, "front": "world", "back": "świat", "tag": "rzeczowniki" },
+    { "id": 13, "front": "to look", "back": "patrzeć", "tag": "czasowniki" },
+    { "id": 14, "front": "hand", "back": "ręka", "tag": "rzeczowniki" },
+    { "id": 15, "front": "to give", "back": "dawać", "tag": "czasowniki" },
+    { "id": 16, "front": "money", "back": "pieniądze", "tag": "rzeczowniki" },
+    { "id": 17, "front": "to tell", "back": "mówić, opowiadać", "tag": "czasowniki" },
+    { "id": 18, "front": "fact", "back": "fakt", "tag": "rzeczowniki" },
+    { "id": 19, "front": "to find", "back": "znajdować", "tag": "czasowniki" },
+    { "id": 20, "front": "problem", "back": "problem", "tag": "rzeczowniki" },
+    { "id": 21, "front": "to use", "back": "używać", "tag": "czasowniki" },
+    { "id": 22, "front": "system", "back": "system", "tag": "rzeczowniki" }
+  ],
+  "session": { "shuffle": true, "showTimer": true }
+}
