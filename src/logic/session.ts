@@ -1,5 +1,5 @@
-import { Deck, Card, SessionState, CardResult, Grade, SessionSummary } from '../models';
-import { loadSession, saveSession } from '../storage/storage';
+import { Deck, Card, SessionState, CardResult, Grade, SessionSummary, FilterSettings } from '../models/index.js';
+import { loadSession, saveSession, getDeckResults } from '../storage/storage.js'; // Dodano getDeckResults
 
 const ONE_SECOND = 1000;
 
@@ -9,9 +9,12 @@ export class FlashcardSession {
     private state: SessionState;
     private cardStartTime: number = 0; 
     private timerInterval: number | null = null;
+    
+    private defaultFilterSettings: FilterSettings; 
 
-    constructor(deckData: Deck) {
+    constructor(deckData: Deck, filterSettings: FilterSettings) {
         this.deck = deckData;
+        this.defaultFilterSettings = filterSettings;
         
         const savedState = loadSession(deckData.deckTitle);
         
@@ -38,8 +41,31 @@ export class FlashcardSession {
     }
 
     private initializeNewSession(): SessionState {
-        this.cardsInSession = [...this.deck.cards];
-        if (this.deck.session.shuffle) {
+        let filteredCards = [...this.deck.cards];
+        const settings = this.defaultFilterSettings;
+        
+        if (settings.filterTag) {
+             filteredCards = filteredCards.filter(c => c.tag === settings.filterTag);
+        }
+        
+        if (settings.repeatOnlyHard) {
+            const allResults = getDeckResults(this.deck.deckTitle);
+            const hardCardIds = allResults
+                .filter(r => r.grade === 'NotYet')
+                .map(r => r.cardId);
+                
+            filteredCards = filteredCards.filter(c => hardCardIds.includes(c.id));
+            
+            if (filteredCards.length === 0) {
+                 console.warn("Brak trudnych fiszek do powtórki. Rozpoczynam normalną sesję.");
+                 filteredCards = [...this.deck.cards];
+                 settings.repeatOnlyHard = false; 
+            }
+        }
+        
+        this.cardsInSession = filteredCards;
+        
+        if (settings.shuffle) {
             this.shuffleArray(this.cardsInSession);
         }
         
@@ -58,14 +84,13 @@ export class FlashcardSession {
             results: initialResults,
             isCompleted: false,
             lastReviewDate: 0,
+            filterSettings: settings 
         };
     }
-    
     
     public getCurrentCard(): Card {
         return this.cardsInSession[this.state.currentCardIndex];
     }
-    
     
     public getCurrentResult(): CardResult {
         const currentCardId = this.getCurrentCard().id;
@@ -76,17 +101,19 @@ export class FlashcardSession {
         return this.state;
     }
     
+
     public gradeCard(grade: Grade): void {
         const currentResult = this.getCurrentResult();
         
-    
         if (currentResult.grade !== null) {
              console.warn("Fiszka już oceniona, edycja zablokowana.");
              return;
         }
 
         const now = Date.now();
-        const timeSpent = now - this.cardStartTime;
+        
+
+        const timeSpent = currentResult.timeSpentMs + (now - this.cardStartTime); 
 
         currentResult.grade = grade;
         currentResult.timeSpentMs = timeSpent;
@@ -98,7 +125,6 @@ export class FlashcardSession {
         this.cardStartTime = Date.now();
     }
     
- 
 
     public goToNext(): boolean {
         if (this.state.currentCardIndex < this.cardsInSession.length - 1) {
@@ -128,17 +154,29 @@ export class FlashcardSession {
             saveSession(this.state);
         }
     }
-    
+
     public getTimeOnCurrentCardMs(): number {
-        return Date.now() - this.cardStartTime;
+        const currentResult = this.getCurrentResult();
+        if (currentResult.grade !== null) {
+            return currentResult.timeSpentMs; 
+        }
+        return currentResult.timeSpentMs + (Date.now() - this.cardStartTime);
     }
 
+ 
     public getTotalSessionTimeMs(): number {
         if (this.state.isCompleted) {
             const lastReviewedTime = Math.max(...this.state.results.map(r => r.reviewedAt));
             return lastReviewedTime - this.state.sessionStartTime;
         }
-        return Date.now() - this.state.sessionStartTime;
+        
+        const timeInCurrentCard = Date.now() - this.cardStartTime;
+        
+        const timeInPreviousCards = this.state.results
+            .filter((_, index) => index < this.state.currentCardIndex)
+            .reduce((sum, r) => sum + r.timeSpentMs, 0);
+
+        return timeInPreviousCards + timeInCurrentCard;
     }
     
     public startTimer(callback: (totalTime: string, cardTime: string) => void): void {
@@ -171,6 +209,7 @@ export class FlashcardSession {
         return this.state.results.filter(r => r.grade === 'NotYet').length;
     }
     
+   
     public formatTime(ms: number): string {
         const totalSeconds = Math.floor(ms / ONE_SECOND);
         const minutes = Math.floor(totalSeconds / 60);
@@ -180,13 +219,19 @@ export class FlashcardSession {
         return `${pad(minutes)}:${pad(seconds)}`;
     }
 
+  
     public getSummary(): SessionSummary {
-        const totalTimeMs = this.getTotalSessionTimeMs();
+    
+        const gradedResults = this.state.results.filter(r => r.grade !== null);
         const totalCards = this.cardsInSession.length;
         
-        const totalTimeGraded = this.state.results.reduce((sum, r) => sum + r.timeSpentMs, 0);
+        const totalTimeGraded = gradedResults.reduce((sum, r) => sum + r.timeSpentMs, 0);
         
-        const avgTimeMs = totalCards > 0 ? totalTimeGraded / totalCards : 0;
+        const finalTotalTimeMs = this.state.isCompleted 
+            ? Math.max(...this.state.results.map(r => r.reviewedAt)) - this.state.sessionStartTime
+            : this.getTotalSessionTimeMs();
+
+        const avgTimeMs = gradedResults.length > 0 ? totalTimeGraded / gradedResults.length : 0;
         
         const hardCardsIds = this.state.results
             .filter(r => r.grade === 'NotYet')
@@ -197,7 +242,7 @@ export class FlashcardSession {
         return {
             known: this.getKnownCount(),
             notYet: this.getNotYetCount(),
-            totalTime: this.formatTime(totalTimeMs),
+            totalTime: this.formatTime(finalTotalTimeMs),
             avgTime: this.formatTime(avgTimeMs),
             hardCards: hardCards
         };
@@ -209,5 +254,29 @@ export class FlashcardSession {
 
     public isCurrentCardGraded(): boolean {
         return this.getCurrentResult().grade !== null;
+    }
+    
+   
+    public resetForHardCards(): FlashcardSession {
+         const summary = this.getSummary();
+         
+        
+         const newSettings: FilterSettings = {
+             shuffle: this.state.filterSettings.shuffle, 
+             filterTag: this.state.filterSettings.filterTag,
+             repeatOnlyHard: true 
+         };
+         
+         
+         return new FlashcardSession(this.deck, newSettings);
+    }
+    
+    public getTagSummary(): Map<string, number> {
+        const tagMap = new Map<string, number>();
+        this.deck.cards.forEach(card => {
+            const tag = card.tag || 'Bez tagu';
+            tagMap.set(tag, (tagMap.get(tag) || 0) + 1);
+        });
+        return tagMap;
     }
 }
