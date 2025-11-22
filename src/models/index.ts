@@ -1,6 +1,5 @@
 export type Grade = 'Known' | 'NotYet' | null;
 
-
 export interface Card {
     id: number;
     front: string;
@@ -20,6 +19,13 @@ export interface SessionSettings {
     showTimer: boolean;
 }
 
+
+export interface FilterSettings {
+    filterTag: string | null; 
+    repeatOnlyHard: boolean; 
+    shuffle: boolean; 
+}
+
 export interface Deck {
     deckTitle: string;
     cards: Card[];
@@ -34,6 +40,9 @@ export interface SessionState {
     results: CardResult[];
     isCompleted: boolean;
     lastReviewDate: number; 
+
+
+    filterSettings: FilterSettings; 
 }
 
 export interface SessionSummary {

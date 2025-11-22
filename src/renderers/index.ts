@@ -9,7 +9,7 @@ function getStatsPanelHtml(session: FlashcardSession, cardRevealed: boolean): st
     const currentCard = session.getCurrentCard();
     const result = session.getCurrentResult();
     
-    // Czas aktualizowany dynamicznie przez timer
+    
     let totalTime = '00:00';
     let cardTime = '00:00';
     if (!state.isCompleted) {
@@ -28,9 +28,7 @@ function getStatsPanelHtml(session: FlashcardSession, cardRevealed: boolean): st
     `;
 }
 
-/**
- * Generuje HTML dla ekranu startowego.
- */
+
 export function renderStartScreen(title: string, count: number): string {
     return `
         <h1>📖 ${title}</h1>
@@ -42,9 +40,7 @@ export function renderStartScreen(title: string, count: number): string {
     `;
 }
 
-/**
- * Generuje HTML dla widoku pojedynczej fiszki.
- */
+
 export function renderCardViewHtml(session: FlashcardSession, cardRevealed: boolean): string {
     const card = session.getCurrentCard();
     const result = session.getCurrentResult();
@@ -66,7 +62,7 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
         <button id="show-answer-btn" class="btn btn-secondary" style="display: ${!cardRevealed ? 'block' : 'none'}; margin: 10px auto;">Pokaż odpowiedź</button>
     `;
     
-    // Nawigacja
+   
     const isLastCard = session.getState().currentCardIndex === session.getState().cardOrderIds.length - 1;
     const isFinishActive = session.isFinishButtonActive();
 
@@ -78,7 +74,7 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
         </div>
     `;
 
-    // Informacja o ocenie (jeśli jest oceniona i nie jest to ekran oceny)
+    
     let gradedInfo = '';
     if (isGraded) {
         const gradeText = result.grade === 'Known' ? '✅ ZNANA' : '❌ JESZCZE NIE';
@@ -101,9 +97,7 @@ export function renderCardViewHtml(session: FlashcardSession, cardRevealed: bool
     `;
 }
 
-/**
- * Generuje HTML dla ekranu podsumowania sesji.
- */
+
 export function renderSummaryScreen(title: string, summary: SessionSummary): string {
     const hardCardsList = summary.hardCards.length > 0 ? 
         `

@@ -1,27 +1,20 @@
 {
   "compilerOptions": {
-    // === Konfiguracja dla aplikacji Webowej (Browser) ===
     "target": "ES2020",
-    "module": "ES2020", // Używamy ES2020 (dla Parcel/Webpack)
-    "moduleResolution": "node", // Używamy resolucji Node.js, aby ułatwić znajdowanie modułów
+    "module": "ES2020", 
+    "moduleResolution": "node", 
     
-    // === Lokalizacja plików ===
     "rootDir": "./src",
-    // "outDir": "./dist", // Opcjonalnie, jeśli chcesz mieć katalog wyjściowy
+
+    "strict": true, 
+    "skipLibCheck": true, 
+    "esModuleInterop": true, 
+    "resolveJsonModule": true, 
     
-    // === Wymagania dotyczące typowania i kodu ===
-    "strict": true, // Zalecane
-    "skipLibCheck": true, // Zalecane
-    "esModuleInterop": true, // Ułatwia importy (np. deck.json)
-    "resolveJsonModule": true, // Wymagane do importu ./data/deck.json
-    
-    // === Opcje wyłączone / Zmodyfikowane dla uproszczenia ===
-    // Wyłączamy generowanie plików .d.ts, które są zbędne w tej aplikacji
     "declaration": false,
     "declarationMap": false,
-    "sourceMap": true, // Zachowujemy dla debugowania
+    "sourceMap": true,
     
-    // Uproszczenie obsługi modułów (usuwamy nadmiarowe opcje zorientowane na Node.js/stricter)
     "verbatimModuleSyntax": false,
     "isolatedModules": false,
     "noUncheckedSideEffectImports": false,

@@ -5,9 +5,9 @@ const ONE_SECOND = 1000;
 
 export class FlashcardSession {
     private deck: Deck;
-    private cardsInSession: Card[] = []; // Uporządkowane fiszki na czas sesji
+    private cardsInSession: Card[] = []; 
     private state: SessionState;
-    private cardStartTime: number = 0; // Pomiar czasu dla bieżącej fiszki
+    private cardStartTime: number = 0; 
     private timerInterval: number | null = null;
 
     constructor(deckData: Deck) {
@@ -17,7 +17,6 @@ export class FlashcardSession {
         
         if (savedState) {
             this.state = savedState;
-            // Odtworzenie kolejności fiszek z zapisanego stanu
             this.cardsInSession = savedState.cardOrderIds
                 .map(id => this.deck.cards.find(c => c.id === id))
                 .filter(c => c !== undefined) as Card[];
@@ -25,13 +24,11 @@ export class FlashcardSession {
             this.state = this.initializeNewSession();
         }
         
-        // Ustawienie czasu startu dla bieżącej fiszki, jeśli sesja trwa
         if (!this.state.isCompleted) {
             this.cardStartTime = Date.now();
         }
     }
     
-    // --- Inicjalizacja i Pomocnicze ---
     
     private shuffleArray<T>(array: T[]): void {
         for (let i = array.length - 1; i > 0; i--) {
@@ -64,12 +61,12 @@ export class FlashcardSession {
         };
     }
     
-    // Zwraca dane bieżącej fiszki
+    
     public getCurrentCard(): Card {
         return this.cardsInSession[this.state.currentCardIndex];
     }
     
-    // Zwraca wynik bieżącej fiszki z tablicy wyników
+    
     public getCurrentResult(): CardResult {
         const currentCardId = this.getCurrentCard().id;
         return this.state.results.find(r => r.cardId === currentCardId)!;
@@ -79,15 +76,10 @@ export class FlashcardSession {
         return this.state;
     }
     
-    // --- Logika Oceny ---
-    
-    /**
-     * Ocenia bieżącą fiszkę. Rejestruje czas i wynik.
-     */
     public gradeCard(grade: Grade): void {
         const currentResult = this.getCurrentResult();
         
-        // Zapobiega ponownej edycji po ocenie
+    
         if (currentResult.grade !== null) {
              console.warn("Fiszka już oceniona, edycja zablokowana.");
              return;
@@ -103,14 +95,12 @@ export class FlashcardSession {
         this.checkCompletion();
         saveSession(this.state);
         
-        // Czas startu dla następnej fiszki
         this.cardStartTime = Date.now();
     }
     
-    // --- Nawigacja ---
+ 
 
     public goToNext(): boolean {
-        // Musi być aktywna tylko jeśli nie jesteśmy na końcu
         if (this.state.currentCardIndex < this.cardsInSession.length - 1) {
             this.state.currentCardIndex++;
             this.cardStartTime = Date.now(); 
@@ -121,7 +111,6 @@ export class FlashcardSession {
     }
 
     public goToPrevious(): boolean {
-        // Musi być aktywna tylko jeśli nie jesteśmy na początku
         if (this.state.currentCardIndex > 0) {
             this.state.currentCardIndex--;
             this.cardStartTime = Date.now(); 
@@ -131,7 +120,6 @@ export class FlashcardSession {
         return false;
     }
     
-    // Sprawdzenie, czy wszystkie fiszki są ocenione
     private checkCompletion(): void {
         const allGraded = this.state.results.every(r => r.grade !== null);
         if (allGraded && !this.state.isCompleted) {
@@ -141,25 +129,15 @@ export class FlashcardSession {
         }
     }
     
-    // --- Statystyki i Timery ---
-
-    /**
-     * Zwraca czas spędzony na bieżącej fiszce (odliczany w milisekundach).
-     */
     public getTimeOnCurrentCardMs(): number {
         return Date.now() - this.cardStartTime;
     }
 
-    /**
-     * Zwraca łączny czas trwania sesji (odliczany w milisekundach).
-     */
     public getTotalSessionTimeMs(): number {
         if (this.state.isCompleted) {
-            // Czas liczymy od startu do ostatniej oceny
             const lastReviewedTime = Math.max(...this.state.results.map(r => r.reviewedAt));
             return lastReviewedTime - this.state.sessionStartTime;
         }
-        // Jeśli trwa - do teraz
         return Date.now() - this.state.sessionStartTime;
     }
     
@@ -175,7 +153,7 @@ export class FlashcardSession {
             const totalTimeStr = this.formatTime(this.getTotalSessionTimeMs());
             const cardTimeStr = this.formatTime(this.getTimeOnCurrentCardMs());
             callback(totalTimeStr, cardTimeStr);
-        }, ONE_SECOND) as unknown as number; // Użycie as number do zgodności z Node/Browser
+        }, ONE_SECOND) as unknown as number; 
     }
 
     public stopTimer(): void {
@@ -185,7 +163,6 @@ export class FlashcardSession {
         }
     }
 
-    // Liczniki
     public getKnownCount(): number {
         return this.state.results.filter(r => r.grade === 'Known').length;
     }
@@ -194,7 +171,6 @@ export class FlashcardSession {
         return this.state.results.filter(r => r.grade === 'NotYet').length;
     }
     
-    // Formatuje czas z milisekund na "mm:ss"
     public formatTime(ms: number): string {
         const totalSeconds = Math.floor(ms / ONE_SECOND);
         const minutes = Math.floor(totalSeconds / 60);
@@ -204,12 +180,10 @@ export class FlashcardSession {
         return `${pad(minutes)}:${pad(seconds)}`;
     }
 
-    // Oblicza i zwraca podsumowanie sesji
     public getSummary(): SessionSummary {
         const totalTimeMs = this.getTotalSessionTimeMs();
         const totalCards = this.cardsInSession.length;
         
-        // Sumujemy tylko czas spędzony na ocenionych fiszkach
         const totalTimeGraded = this.state.results.reduce((sum, r) => sum + r.timeSpentMs, 0);
         
         const avgTimeMs = totalCards > 0 ? totalTimeGraded / totalCards : 0;
@@ -229,7 +203,6 @@ export class FlashcardSession {
         };
     }
     
-    // Wymagania blokad
     public isFinishButtonActive(): boolean {
         return this.state.isCompleted;
     }
